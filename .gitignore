@@ -1,0 +1,4 @@
+*.obj
+*.ply
+output.obj
+output.ply

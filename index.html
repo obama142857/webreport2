@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拟合结果</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+                "@tweenjs/tween.js": "https://unpkg.com/@tweenjs/tween.js@20.0.0/dist/tween.esm.js"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <!-- 左侧：状态显示和语义列表 -->
+    <div id="sidebar-left" class="sidebar">
+        <div class="panel">
+            
+            <div id="file-status-area">
+                <div class="status-line" id="status-obj">
+                    <span class="status-icon status-loading"></span>读取 output.obj ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-obj" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="status-line" id="status-ply">
+                    <span class="status-icon status-loading"></span>读取 output.ply ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-ply" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="status-line" id="status-failed">
+                    <span class="status-icon status-loading"></span>读取 failed.ply ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-failed" class="progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="semantic-list">
+            <div style="color:#999; text-align:center; padding-top:40px; font-size:0.9em;">等待数据处理...</div>
+        </div>
+    </div>
+
+    <!-- 右侧：设置、基准模型和实例检测 -->
+    <div id="sidebar-right" class="sidebar">
+        <div id="panel-general" class="panel">
+            <h3>通用设置</h3>
+            <div class="form-row"><label>背景颜色</label><input type="color" id="bgColor" value="#f0f2f5"></div>
+            <div class="form-row"><label>显示网格</label><input type="checkbox" id="showGrid" checked></div>
+            <div class="form-row"><label>显示失败点云</label><input type="checkbox" id="showFailed" checked></div>
+            <div class="form-row"><label>近大远小</label><input type="checkbox" id="sizeAttenuation"></div>
+            <div class="form-row">
+                <label>点云大小</label>
+                <div class="input-wrapper">
+                    <input type="range" id="pointSizeRange" min="0.1" max="10" step="0.1" value="3">
+                    <span id="pointSizeVal" class="control-number" style="border:none;">3</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>不透明度</label>
+                <div class="input-wrapper">
+                    <input type="range" id="opacityRange" min="0.1" max="1" step="0.1" value="1">
+                    <span id="opacityVal" class="control-number" style="border:none;">1.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="panel-model" class="panel">
+            <h3>基准模型</h3>
+            <div class="form-row"><label>显示模型</label><input type="checkbox" id="showMesh" checked></div>
+            <div class="form-row"><label>模型颜色</label><input type="color" id="meshColor" value="#9aa0a6"></div>
+            <div class="form-row">
+                <label>透明度</label>
+                <div class="input-wrapper">
+                    <input type="range" id="meshOpacity" min="0" max="1" step="0.1" value="0.4">
+                    <span id="meshOpacityVal" class="control-number" style="border:none;">0.4</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="instance-panel" class="panel" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; margin-bottom:10px; padding-bottom:8px;">
+            <h3 style="border:none; margin:0; padding:0;">实例质量检测</h3>
+            <button id="btnToggleFocus" style="cursor:pointer; padding:4px 8px; font-size:0.85em; border:1px solid #ccc; background:#fff; border-radius:4px;">
+                ⛶ 展开
+            </button>
+        </div>
+
+            <div class="form-row">
+                <label>超差判定阈值</label>
+                <div class="input-wrapper">
+                    <input type="range" id="defectRatioRange" min="0.1" max="1.0" step="0.05" value="0.6"
+                        class="control-range">
+                    <input type="number" id="defectRatioInput" min="0" max="1" step="0.05" value="0.6"
+                        class="control-number">
+                </div>
+            </div>
+
+            <button class="btn-calc" id="btnCalcInstances">开始计算</button>
+            <div id="instance-list">
+                <div style="text-align:center; color:#999; font-size:0.9em; padding-top:10px;">点击上方按钮计算</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>

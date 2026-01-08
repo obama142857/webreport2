@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拟合结果</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+
+        .sidebar {
+            position: absolute;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            z-index: 10;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        /* 布局宽度设置 */
+        #sidebar-left {
+            left: 0;
+            width: 400px;
+        }
+
+        #sidebar-right {
+            right: 0;
+            width: 340px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.96);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            pointer-events: auto;
+            margin-bottom: 15px;
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h3 {
+            margin: 0 0 12px 0;
+            font-size: 1.05em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            color: #222;
+        }
+
+        .form-row {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.9em;
+        }
+
+        .form-row label {
+            color: #555;
+            font-weight: 500;
+        }
+
+        #semantic-list {
+            flex: 1;
+            overflow-y: auto;
+            pointer-events: auto;
+            scrollbar-width: thin;
+            padding-right: 5px;
+            min-height: 200px;
+        }
+
+        #instance-panel {
+            max-height: 320px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #instance-list {
+            overflow-y: auto;
+            flex: 1;
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+        }
+
+        .btn-calc {
+            width: 100%;
+            padding: 8px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+
+        .btn-calc:hover {
+            background: #1976D2;
+        }
+
+        .defect-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fff0f0;
+            border: 1px solid #ffcccc;
+            padding: 8px;
+            margin-bottom: 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+
+        .defect-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .defect-ratio {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+
+        .btn-focus {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .btn-focus:hover {
+            background: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+
+        .semantic-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 8px;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        .card-title {
+            font-weight: bold;
+            font-size: 0.95em;
+            color: #333;
+            display: block;
+        }
+
+        .card-stats {
+            font-size: 0.75em;
+            color: #888;
+            display: block;
+            margin-top: 3px;
+            font-family: monospace;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .symmetry-label {
+            font-size: 0.75em;
+            color: #666;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 50px;
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        canvas.dist-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .color-preview-bar {
+            height: 10px;
+            width: 100%;
+            border-radius: 0 0 4px 4px;
+            background: #eee;
+            margin-bottom: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-top: none;
+            position: relative;
+        }
+
+        .preview-tick {
+            position: absolute;
+            top: -55px;
+            bottom: 0;
+            width: 1px;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 1px dashed rgba(255, 255, 255, 0.6);
+            transform: translateX(-50%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .zero-line {
+            position: absolute;
+            top: -50px;
+            bottom: 0;
+            left: 50%;
+            width: 1px;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: 1;
+        }
+
+        .control-group {
+            margin-bottom: 4px;
+            border-top: 1px dashed #f0f0f0;
+            padding-top: 4px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+        }
+
+        .control-label {
+            width: 45px;
+            color: #555;
+            font-weight: 600;
+            font-size: 0.8em;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .control-range {
+            flex: 1;
+            cursor: pointer;
+            height: 5px;
+        }
+
+        .control-number {
+            width: 50px;
+            text-align: right;
+            font-family: monospace;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 0.85em;
+            color: #333;
+        }
+
+        input[type="color"] {
+            border: none;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            background: none;
+        }
+
+        /* 状态指示器样式 */
+        .status-line {
+            margin-bottom: 5px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-icon {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .status-loading {
+            background: #FFC107;
+            animation: blink 1s infinite;
+        }
+
+        .status-success {
+            background: #4CAF50;
+        }
+
+        .status-error {
+            background: #F44336;
+        }
+
+        /* 进度条样式 */
+        .progress-container {
+            width: 100%;
+            height: 4px;
+            background-color: #eee;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+            display: none; /* 初始隐藏 */
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #2196F3;
+            transition: width 0.1s;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/",
+                "@tweenjs/tween.js": "https://unpkg.com/@tweenjs/tween.js@20.0.0/dist/tween.esm.js"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <!-- 左侧：状态显示和语义列表 -->
+    <div id="sidebar-left" class="sidebar">
+        <div class="panel">
+            
+            <div id="file-status-area">
+                <div class="status-line" id="status-obj">
+                    <span class="status-icon status-loading"></span>读取 output.obj ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-obj" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="status-line" id="status-ply">
+                    <span class="status-icon status-loading"></span>读取 output.ply ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-ply" class="progress-bar"></div>
+                    </div>
+                </div>
+                <div class="status-line" id="status-failed">
+                    <span class="status-icon status-loading"></span>读取 failed.ply ...
+                    <div class="progress-container" style="display: block;">
+                        <div id="progress-bar-failed" class="progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="semantic-list">
+            <div style="color:#999; text-align:center; padding-top:40px; font-size:0.9em;">等待数据处理...</div>
+        </div>
+    </div>
+
+    <!-- 右侧：设置、基准模型和实例检测 -->
+    <div id="sidebar-right" class="sidebar">
+        <div id="panel-general" class="panel">
+            <h3>通用设置</h3>
+            <div class="form-row"><label>背景颜色</label><input type="color" id="bgColor" value="#f0f2f5"></div>
+            <div class="form-row"><label>显示网格</label><input type="checkbox" id="showGrid" checked></div>
+            <div class="form-row"><label>显示失败点云</label><input type="checkbox" id="showFailed" checked></div>
+            <div class="form-row"><label>近大远小</label><input type="checkbox" id="sizeAttenuation"></div>
+            <div class="form-row">
+                <label>点云大小</label>
+                <div class="input-wrapper">
+                    <input type="range" id="pointSizeRange" min="0.1" max="10" step="0.1" value="3">
+                    <span id="pointSizeVal" class="control-number" style="border:none;">3</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>不透明度</label>
+                <div class="input-wrapper">
+                    <input type="range" id="opacityRange" min="0.1" max="1" step="0.1" value="1">
+                    <span id="opacityVal" class="control-number" style="border:none;">1.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="panel-model" class="panel">
+            <h3>基准模型</h3>
+            <div class="form-row"><label>显示模型</label><input type="checkbox" id="showMesh" checked></div>
+            <div class="form-row"><label>模型颜色</label><input type="color" id="meshColor" value="#9aa0a6"></div>
+            <div class="form-row">
+                <label>透明度</label>
+                <div class="input-wrapper">
+                    <input type="range" id="meshOpacity" min="0" max="1" step="0.1" value="0.4">
+                    <span id="meshOpacityVal" class="control-number" style="border:none;">0.4</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="instance-panel" class="panel" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; margin-bottom:10px; padding-bottom:8px;">
+            <h3 style="border:none; margin:0; padding:0;">实例质量检测</h3>
+            <button id="btnToggleFocus" style="cursor:pointer; padding:4px 8px; font-size:0.85em; border:1px solid #ccc; background:#fff; border-radius:4px;">
+                ⛶ 展开
+            </button>
+        </div>
+
+            <div class="form-row">
+                <label>超差判定阈值</label>
+                <div class="input-wrapper">
+                    <input type="range" id="defectRatioRange" min="0.1" max="1.0" step="0.05" value="0.6"
+                        class="control-range">
+                    <input type="number" id="defectRatioInput" min="0" max="1" step="0.05" value="0.6"
+                        class="control-number">
+                </div>
+            </div>
+
+            <button class="btn-calc" id="btnCalcInstances">开始计算</button>
+            <div id="instance-list">
+                <div style="text-align:center; color:#999; font-size:0.9em; padding-top:10px;">点击上方按钮计算</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+        import * as TWEEN from '@tweenjs/tween.js';
+
+        let scene, camera, renderer, controls;
+        let meshGroup, pointCloudGroup, failedGroup;
+        const semanticMeshes = {};
+        const semanticStates = {};
+        let instanceData = {};
+        
+        const loadStatus = {
+            obj: false,
+            ply: false,
+            failed: false
+        };
+
+        const params = {
+            pointSize: 3,
+            sizeAttenuation: false,
+            opacity: 1.0,
+            meshColor: '#9aa0a6',
+            meshOpacity: 0.4,
+            showMesh: true,
+            showGrid: true,
+            backgroundColor: '#f0f2f5'
+        };
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(params.backgroundColor);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 10000);
+            camera.position.set(0, 5, 0);
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: false,                  // 关闭！！！
+                alpha: false,
+                powerPreference: "high-performance",
+                precision: "highp"                 // 可选
+            });
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.NoToneMapping;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(1);
+            document.body.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = false;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            // 添加半球光，提供来自天空和地面的多方位柔和底色光
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+            hemiLight.position.set(0, 20, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(100, 100, 100);
+            scene.add(dirLight);
+
+            const gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0xcccccc);
+            gridHelper.name = "GridHelper";
+            scene.add(gridHelper);
+
+            meshGroup = new THREE.Group();
+            pointCloudGroup = new THREE.Group();
+            failedGroup = new THREE.Group();
+            // 确保点云组在模型之后渲染
+            pointCloudGroup.renderOrder = 999;
+            failedGroup.renderOrder = 1000;
+            scene.add(meshGroup);
+            scene.add(pointCloudGroup);
+            scene.add(failedGroup);
+
+            setupRightSidebarEvents();
+            setupInstanceCalcEvent();
+
+            window.addEventListener('resize', onWindowResize);
+
+            // 自动加载文件
+            loadDefaultFiles();
+        }
+
+        function updateStatus(id, type, msg) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            
+            const icon = el.querySelector('.status-icon');
+            if (icon) {
+                icon.className = `status-icon status-${type}`;
+            }
+            
+            // 简单的文本替换逻辑，不依赖 Node 类型判断
+            // 我们通过 innerHTML 重新构建，但保留进度条
+            const progressContainer = el.querySelector('.progress-container');
+            const progressHtml = progressContainer ? progressContainer.outerHTML : '';
+            
+            el.innerHTML = `<span class="status-icon status-${type}"></span> ${msg} ${progressHtml}`;
+
+            if (type === 'success' || type === 'error') {
+                const newProgressContainer = el.querySelector('.progress-container');
+                if (newProgressContainer) newProgressContainer.style.display = 'none';
+                
+                if (id === 'status-obj') loadStatus.obj = true;
+                if (id === 'status-ply') loadStatus.ply = true;
+                if (id === 'status-failed') loadStatus.failed = true;
+                
+                checkAllLoaded();
+            }
+        }
+
+        function updateProgress(id, loaded, total) {
+            const bar = document.getElementById(`progress-bar-${id}`);
+            if (bar && total > 0) {
+                const percent = (loaded / total * 100).toFixed(1);
+                bar.style.width = percent + '%';
+            }
+        }
+
+        function showNotification(message, type = 'error') {
+            console.error(`[${type.toUpperCase()}] ${message}`);
+            // 使用简单的 alert 提示，或者可以实现更漂亮的 UI 弹窗
+            alert(`${type === 'error' ? '❌ 错误' : '⚠️ 提示'}: ${message}`);
+        }
+
+        window.onerror = function(msg, url, line, col, error) {
+            showNotification(`程序运行出错: ${msg} (行: ${line})`);
+            return false;
+        };
+
+        function checkAllLoaded() {
+            if (loadStatus.obj && loadStatus.ply && loadStatus.failed) {
+                setTimeout(() => {
+                    const area = document.getElementById('file-status-area');
+                    if (area) {
+                        area.style.transition = 'opacity 0.5s';
+                        area.style.opacity = '0';
+                        setTimeout(() => {
+                            area.parentElement.style.display = 'none';
+                        }, 500);
+                    }
+                }, 1000);
+            }
+        }
+
+        function loadDefaultFiles() {
+            // 1. 加载 output.obj (采用 ArrayBuffer 模式以支持超大文件 > 500MB)
+            const objFileLoader = new THREE.FileLoader();
+            objFileLoader.setResponseType('arraybuffer');
+            updateStatus('status-obj', 'loading', '正在下载大型模型 (output.obj) ...');
+
+            objFileLoader.load(
+                './output.obj',
+                (buffer) => {
+                    try {
+                        console.log('[OBJ] Download complete. Buffer size:', buffer.byteLength);
+                        updateStatus('status-obj', 'loading', '正在解析大型模型数据...');
+                        
+                        // 异步执行分块解析，防止阻塞 UI
+                        setTimeout(() => {
+                            streamParseOBJ(buffer, (object, progressMsg, isDone) => {
+                                if (!isDone) {
+                                    updateStatus('status-obj', 'loading', progressMsg);
+                                    return;
+                                }
+                                
+                                meshGroup.clear();
+                                meshGroup.add(object);
+                                
+                                const box = new THREE.Box3().setFromObject(object);
+                                const size = box.getSize(new THREE.Vector3());
+                                const center = box.getCenter(new THREE.Vector3());
+                                
+                                console.log('[OBJ] Surface Ready. Faces:', object.geometry.index.count / 3);
+                                
+                                if (size.length() > 0) {
+                                    focusOnBox(box);
+                                }
+
+                                updateStatus('status-obj', 'success', `模型成功载入并生成表面 (${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB)`);
+                            });
+                        }, 100);
+                    } catch (e) {
+                        console.error('OBJ Process Error:', e);
+                        showNotification('处理大型 OBJ 失败: ' + e.message);
+                        updateStatus('status-obj', 'error', '解析模型失败');
+                    }
+                },
+                (xhr) => {
+                    if (xhr.lengthComputable && xhr.total > 0) {
+                        updateProgress('obj', xhr.loaded, xhr.total);
+                        const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        updateStatus('status-obj', 'loading', `下载 output.obj ... ${pct}% (${(xhr.loaded/1024/1024).toFixed(0)}MB)`);
+                    }
+                },
+                (err) => {
+                    updateStatus('status-obj', 'error', '下载 output.obj 失败');
+                }
+            );
+
+            // 2. 加载 output.ply
+            const plyFileLoader = new THREE.FileLoader();
+            plyFileLoader.setResponseType('arraybuffer');
+            plyFileLoader.load(
+                './output.ply',
+                (buffer) => {
+                    try {
+                        const data = parsePly(buffer);
+                        processPointCloudData(data);
+                        document.getElementById('instance-panel').style.display = 'flex';
+                        updateStatus('status-ply', 'success', '点云 (output.ply) 解析完成');
+                    } catch (err) {
+                        console.error(err);
+                        updateStatus('status-ply', 'error', 'PLY 解析错误');
+                    }
+                },
+                (xhr) => {
+                    if (xhr.lengthComputable && xhr.total > 0) {
+                        updateProgress('ply', xhr.loaded, xhr.total);
+                        const pct = (xhr.loaded / xhr.total * 100).toFixed(1);
+                        updateStatus('status-ply', 'loading', `读取 output.ply ... ${pct}%`);
+                    }
+                },
+                (err) => {
+                    console.error('PLY Load Error:', err);
+                    updateStatus('status-ply', 'error', 'output.ply 加载失败');
+                }
+            );
+
+            // 3. 加载 failed.ply
+            loadFailedPly();
+        }
+
+        /**
+         * 专门处理 500MB+ OBJ 的流式解析器 (支持面片以生成实体表面)
+         */
+        function streamParseOBJ(buffer, callback) {
+            const view = new Uint8Array(buffer);
+            const decoder = new TextDecoder();
+            
+            // 默认从您的文件头中看到的计数值 pre-allocated
+            let vCount = 4697458; 
+            let fCount = 5307040;
+            
+            // 尝试精准提取计数
+            const headerText = decoder.decode(view.slice(0, 2000));
+            const vMatch = headerText.match(/number of vertices:\s+(\d+)/);
+            if (vMatch) vCount = parseInt(vMatch[1]);
+            const fMatch = headerText.match(/number of triangles:\s+(\d+)/);
+            if (fMatch) fCount = parseInt(fMatch[1]);
+
+            console.log(`[Stream] Pre-allocating for ${vCount} vertices and ${fCount} triangles...`);
+
+            const positions = new Float32Array(vCount * 3);
+            const colors = new Float32Array(vCount * 3);
+            const normals = new Float32Array(vCount * 3);
+            const indices = new Uint32Array(fCount * 3);
+            
+            let vIdx = 0, nIdx = 0, fIdx = 0;
+            let start = 0;
+            let colorFound = false;
+
+            function processChunk(offset) {
+                const end = Math.min(offset + 50000000, view.length); // 每次处理 50MB
+                
+                for (let i = offset; i < end; i++) {
+                    if (view[i] === 10 || view[i] === 13) {
+                        if (i > start) {
+                            const line = decoder.decode(view.slice(start, i)).trim();
+                            if (line.startsWith('v ')) {
+                                const p = line.split(/\s+/);
+                                if (p.length >= 4) {
+                                    positions[vIdx*3] = parseFloat(p[1]);
+                                    positions[vIdx*3+1] = parseFloat(p[2]);
+                                    positions[vIdx*3+2] = parseFloat(p[3]);
+                                    if (p.length >= 7) {
+                                        colors[vIdx*3] = parseFloat(p[4]);
+                                        colors[vIdx*3+1] = parseFloat(p[5]);
+                                        colors[vIdx*3+2] = parseFloat(p[6]);
+                                        colorFound = true;
+                                    }
+                                    vIdx++;
+                                }
+                            } else if (line.startsWith('vn ')) {
+                                const p = line.split(/\s+/);
+                                if (p.length >= 4) {
+                                    normals[nIdx*3] = parseFloat(p[1]);
+                                    normals[nIdx*3+1] = parseFloat(p[2]);
+                                    normals[nIdx*3+2] = parseFloat(p[3]);
+                                    nIdx++;
+                                }
+                            } else if (line.startsWith('f ')) {
+                                const p = line.split(/\s+/);
+                                if (p.length >= 4) {
+                                    for (let k = 0; k < 3; k++) {
+                                        const part = p[k+1];
+                                        const slashIdx = part.indexOf('/');
+                                        const idxStr = slashIdx === -1 ? part : part.substring(0, slashIdx);
+                                        indices[fIdx*3 + k] = parseInt(idxStr) - 1;
+                                    }
+                                    fIdx++;
+                                }
+                            }
+                        }
+                        start = i + 1;
+                        if (view[start] === 10 || view[start] === 13) { start++; i++; }
+                    }
+                }
+
+                if (end < view.length) {
+                    const pct = (end / view.length * 100).toFixed(0);
+                    callback(null, `正在多线程解析网格与材质: ${pct}%...`, false);
+                    setTimeout(() => processChunk(end), 0);
+                } else {
+                    console.log('[Stream] Parsing done. Building geometry...');
+                    callback(null, '正在构建光照与法线数据...', false);
+                    
+                    const geometry = new THREE.BufferGeometry();
+                    geometry.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, vIdx * 3), 3));
+                    
+                    if (colorFound) {
+                        geometry.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, vIdx * 3), 3));
+                    }
+                    
+                    if (nIdx > 0) {
+                        geometry.setAttribute('normal', new THREE.BufferAttribute(normals.subarray(0, nIdx * 3), 3));
+                    } else if (vIdx > 0 && vIdx < 2000000) {
+                        // 如果没有 vn 且模型不算太大，则尝试计算法线
+                        geometry.computeVertexNormals();
+                    }
+
+                    geometry.setIndex(new THREE.BufferAttribute(indices.subarray(0, fIdx * 3), 1));
+
+                    const material = new THREE.MeshLambertMaterial({
+                        color: colorFound ? 0xffffff : params.meshColor,
+                        vertexColors: colorFound,
+                        side: THREE.DoubleSide,
+                        transparent: params.meshOpacity < 1.0,
+                        opacity: params.meshOpacity,
+                        flatShading: false
+                    });
+
+                    callback(new THREE.Mesh(geometry, material), null, true);
+                }
+            }
+
+            processChunk(0);
+        }
+
+        function focusOnBox(box) {
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 2.0;
+
+            camera.position.set(center.x + cameraZ, center.y + cameraZ, center.z + cameraZ);
+            camera.lookAt(center);
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        function loadFailedPly() {
+            const fileLoader = new THREE.FileLoader();
+            fileLoader.setResponseType('arraybuffer');
+            fileLoader.load(
+                './failed.ply',
+                (buffer) => {
+                    try {
+                        const data = parsePly(buffer);
+                        renderFailedPoints(data);
+                        updateStatus('status-failed', 'success', '点云 (failed.ply) 加载成功');
+                    } catch (err) {
+                        console.error(err);
+                        updateStatus('status-failed', 'error', 'failed.ply 解析错误');
+                        showNotification('解析 failed.ply 时出错: ' + err.message);
+                    }
+                },
+                (xhr) => {
+                    if (xhr.lengthComputable && xhr.total > 0) {
+                        updateProgress('failed', xhr.loaded, xhr.total);
+                        const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        updateStatus('status-failed', 'loading', `读取 failed.ply ... ${pct}%`);
+                    }
+                },
+                (err) => {
+                    console.error('Failed PLY Load Error:', err);
+                    updateStatus('status-failed', 'error', 'failed.ply 加载失败 (可选文件)');
+                }
+            );
+        }
+
+        function renderFailedPoints(flatData) {
+            failedGroup.clear();
+            const numColumns = 6;
+            const numPoints = flatData.length / numColumns;
+            const positions = new Float32Array(numPoints * 3);
+            
+            for (let i = 0; i < numPoints; i++) {
+                positions[i * 3] = flatData[i * numColumns];
+                positions[i * 3 + 1] = flatData[i * numColumns + 1];
+                positions[i * 3 + 2] = flatData[i * numColumns + 2];
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            
+            const mat = new THREE.PointsMaterial({ 
+                size: params.pointSize, 
+                sizeAttenuation: params.sizeAttenuation, 
+                color: 0x000000, // 黑色
+                transparent: true, 
+                opacity: params.opacity, 
+                depthWrite: true, 
+                depthTest: true 
+            });
+            
+            const pts = new THREE.Points(geo, mat);
+            pts.frustumCulled = false;
+            pts.name = "FailedPoints";
+            failedGroup.add(pts);
+        }
+
+        // --- 丝滑定位 ---
+        function focusOnInstance(instanceId) {
+            const inst = instanceData[instanceId];
+            if (!inst || inst.positions.length === 0) return;
+            TWEEN.removeAll();
+
+            const box = new THREE.Box3();
+            for (let i = 0; i < inst.positions.length; i += 3) {
+                box.expandByPoint(new THREE.Vector3(inst.positions[i], inst.positions[i + 1], inst.positions[i + 2]));
+            }
+            const center = box.getCenter(new THREE.Vector3());
+            const sphere = new THREE.Sphere();
+            box.getBoundingSphere(sphere);
+            const radius = sphere.radius;
+            const dist = Math.max(radius * 3.0, 2.0);
+
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const endTarget = center.clone();
+            const direction = new THREE.Vector3(1, 1, 1).normalize();
+            const endPos = endTarget.clone().add(direction.multiplyScalar(dist));
+
+            new TWEEN.Tween({ t: 0 })
+                .to({ t: 1 }, 1200)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .onUpdate(({ t }) => {
+                    camera.position.lerpVectors(startPos, endPos, t);
+                    controls.target.lerpVectors(startTarget, endTarget, t);
+                    controls.update();
+                })
+                .onComplete(() => controls.update())
+                .start();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            TWEEN.update();
+            renderer.render(scene, camera);
+        }
+
+        function setupInstanceCalcEvent() {
+            const range = document.getElementById('defectRatioRange');
+            const num = document.getElementById('defectRatioInput');
+            range.addEventListener('input', () => num.value = range.value);
+            num.addEventListener('change', () => range.value = num.value);
+            document.getElementById('btnCalcInstances').addEventListener('click', calculateDefectiveInstances);
+            setupFocusMode();
+
+        }
+        function setupFocusMode() {
+    const btn = document.getElementById('btnToggleFocus');
+    const pGeneral = document.getElementById('panel-general');
+    const pModel = document.getElementById('panel-model');
+    const pInstance = document.getElementById('instance-panel');
+    
+    let isFocused = false;
+
+    btn.addEventListener('click', () => {
+        isFocused = !isFocused;
+
+        if (isFocused) {
+            // 1. 隐藏上面两个面板
+            pGeneral.style.display = 'none';
+            pModel.style.display = 'none';
+            
+            // 2. 让实例面板铺满剩余高度 (关键步骤)
+            // 原本 CSS 里写了 max-height: 320px，这里要覆盖它
+            pInstance.style.maxHeight = 'calc(100vh - 40px)'; 
+            pInstance.style.flex = '1'; 
+            
+            // 3. 更新按钮文字和样式
+            btn.innerHTML = '✖ 退出专注';
+            btn.style.background = '#ffebee';
+            btn.style.borderColor = '#ffcdd2';
+            btn.style.color = '#c62828';
+            
+        } else {
+            // 恢复原状
+            pGeneral.style.display = 'flex'; // 注意：.panel 原本是 flex
+            pModel.style.display = 'flex';
+            
+            // 恢复高度限制
+            pInstance.style.maxHeight = '320px';
+            pInstance.style.flex = 'unset';
+            
+            // 恢复按钮
+            btn.innerHTML = '⛶ 专注模式';
+            btn.style.background = '#fff';
+            btn.style.borderColor = '#ccc';
+            btn.style.color = '#333';
+        }
+    });
+}
+
+        function setupRightSidebarEvents() {
+            document.getElementById('bgColor').addEventListener('input', (e) => scene.background.set(e.target.value));
+            document.getElementById('showGrid').addEventListener('change', (e) => {
+                const grid = scene.getObjectByName("GridHelper");
+                if (grid) grid.visible = e.target.checked;
+            });
+            document.getElementById('showFailed').addEventListener('change', (e) => {
+                if (failedGroup) failedGroup.visible = e.target.checked;
+            });
+            document.getElementById('sizeAttenuation').addEventListener('change', (e) => {
+                params.sizeAttenuation = e.target.checked;
+                const range = document.getElementById('pointSizeRange');
+                const valDisplay = document.getElementById('pointSizeVal');
+                if (params.sizeAttenuation) { params.pointSize = 0.05; range.max = 1.0; range.step = 0.01; } else { params.pointSize = 3; range.max = 10.0; range.step = 0.1; }
+                range.value = params.pointSize; valDisplay.innerText = params.pointSize;
+                updateAllPointMaterial();
+            });
+            document.getElementById('pointSizeRange').addEventListener('input', (e) => { params.pointSize = parseFloat(e.target.value); document.getElementById('pointSizeVal').innerText = params.pointSize; updateAllPointMaterial(); });
+            document.getElementById('opacityRange').addEventListener('input', (e) => { params.opacity = parseFloat(e.target.value); document.getElementById('opacityVal').innerText = params.opacity; updateAllPointMaterial(); });
+            document.getElementById('showMesh').addEventListener('change', (e) => meshGroup.visible = e.target.checked);
+            document.getElementById('meshColor').addEventListener('input', (e) => { params.meshColor = e.target.value; updateMeshMaterial(); });
+            document.getElementById('meshOpacity').addEventListener('input', (e) => { params.meshOpacity = parseFloat(e.target.value); document.getElementById('meshOpacityVal').innerText = params.meshOpacity; updateMeshMaterial(); });
+        }
+
+        function calculateDefectiveInstances() {
+            const ratioThreshold = parseFloat(document.getElementById('defectRatioInput').value);
+            const listDiv = document.getElementById('instance-list');
+            listDiv.innerHTML = '';
+            const results = [];
+
+            for (const instId in instanceData) {
+                const inst = instanceData[instId];
+                const semLabel = inst.semanticLabel;
+                const thresholds = semanticStates[semLabel];
+                if (!thresholds) continue;
+
+                let badCount = 0;
+                const total = inst.errors.length;
+                for (const err of inst.errors) {
+                    if (err > thresholds.posLimit || err < thresholds.negLimit) badCount++;
+                }
+                const ratio = badCount / total;
+                if (ratio >= ratioThreshold) {
+                    results.push({ id: instId, semLabel: semLabel, ratio: ratio, count: total });
+                }
+            }
+
+            if (results.length === 0) {
+                listDiv.innerHTML = `<div style="text-align:center; color:#666; padding:10px;">未发现超差比例 > ${ratioThreshold} 的实例</div>`;
+                return;
+            }
+            results.sort((a, b) => b.ratio - a.ratio);
+            results.forEach(res => {
+                const item = document.createElement('div');
+                item.className = 'defect-item';
+                item.innerHTML = `
+                    <div class="defect-info">
+                        <strong>Instance ID: ${res.id}</strong>
+                        <span style="font-size:0.8em; color:#666;">语义: ${res.semLabel} | 点数: ${res.count}</span>
+                        <span class="defect-ratio">超差: ${(res.ratio * 100).toFixed(1)}%</span>
+                    </div>
+                    <button class="btn-focus">定位</button>
+                `;
+                item.querySelector('.btn-focus').onclick = () => focusOnInstance(res.id);
+                listDiv.appendChild(item);
+            });
+        }
+
+        function updateMeshMaterial() { meshGroup.traverse((child) => { if (child.isMesh) { child.material.color.set(params.meshColor); child.material.opacity = params.meshOpacity; child.material.depthWrite = (params.meshOpacity === 1.0); } }); }
+
+        function parsePly(buffer) {
+            const textDecoder = new TextDecoder();
+            const headerLimit = Math.min(buffer.byteLength, 4096);
+            const headerString = textDecoder.decode(new Uint8Array(buffer.slice(0, headerLimit)));
+            const headerEndMarker = 'end_header';
+            const headerEndIndex = headerString.indexOf(headerEndMarker);
+            if (headerEndIndex === -1) throw new Error('Invalid PLY header');
+            
+            const actualHeaderEnd = headerEndIndex + headerEndMarker.length;
+            let dataOffset = actualHeaderEnd;
+            const uint8View = new Uint8Array(buffer);
+            // 跳过换行符
+            if (uint8View[dataOffset] === 13) dataOffset++; // \r
+            if (uint8View[dataOffset] === 10) dataOffset++; // \n
+
+            const header = headerString.substring(0, headerEndIndex);
+            const lines = header.split(/\r?\n/);
+            let vertexCount = 0;
+            const properties = [];
+            let inVertexElement = false;
+            
+            const typeToSize = {
+                'char': 1, 'uchar': 1, 'int8': 1, 'uint8': 1,
+                'short': 2, 'ushort': 2, 'int16': 2, 'uint16': 2,
+                'int': 4, 'uint': 4, 'int32': 4, 'uint32': 4, 'float': 4, 'float32': 4,
+                'double': 8, 'float64': 8
+            };
+
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('element vertex')) {
+                    vertexCount = parseInt(line.split(/\s+/)[2]);
+                    inVertexElement = true;
+                } else if (line.startsWith('element')) {
+                    inVertexElement = false;
+                } else if (inVertexElement && line.startsWith('property')) {
+                    const parts = line.split(/\s+/);
+                    const type = parts[1];
+                    const name = parts[2];
+                    properties.push({ type, name, size: typeToSize[type] || 4 });
+                }
+            }
+            
+            const dataView = new DataView(buffer, dataOffset);
+            let offset = 0;
+            const result = new Float32Array(vertexCount * 6); // x, y, z, error, sem, inst
+            
+            for (let i = 0; i < vertexCount; i++) {
+                let x = 0, y = 0, z = 0, error = 0, sem = 0, inst = 0;
+                for (const prop of properties) {
+                    let val = 0;
+                    if (prop.type === 'float' || prop.type === 'float32') {
+                        val = dataView.getFloat32(offset, true);
+                    } else if (prop.type === 'double' || prop.type === 'float64') {
+                        val = dataView.getFloat64(offset, true);
+                    } else if (prop.type === 'int' || prop.type === 'int32') {
+                        val = dataView.getInt32(offset, true);
+                    } else if (prop.type === 'uint' || prop.type === 'uint32') {
+                        val = dataView.getUint32(offset, true);
+                    } else if (prop.type === 'short' || prop.type === 'int16') {
+                        val = dataView.getInt16(offset, true);
+                    } else if (prop.type === 'ushort' || prop.type === 'uint16') {
+                        val = dataView.getUint16(offset, true);
+                    } else if (prop.type === 'char' || prop.type === 'int8') {
+                        val = dataView.getInt8(offset);
+                    } else if (prop.type === 'uchar' || prop.type === 'uint8') {
+                        val = dataView.getUint8(offset);
+                    }
+                    
+                    if (prop.name === 'x') x = val;
+                    else if (prop.name === 'y') y = val;
+                    else if (prop.name === 'z') z = val;
+                    else if (prop.name === 'distance') error = val;
+                    else if (prop.name === 'semantic') sem = val;
+                    else if (prop.name === 'instance') inst = val;
+                    
+                    offset += prop.size;
+                }
+                result[i * 6] = x;
+                result[i * 6 + 1] = y;
+                result[i * 6 + 2] = z;
+                result[i * 6 + 3] = error;
+                result[i * 6 + 4] = sem;
+                result[i * 6 + 5] = inst;
+            }
+            return result;
+        }
+
+        function processPointCloudData(flatData) {
+            pointCloudGroup.clear();
+            const listContainer = document.getElementById('semantic-list'); listContainer.innerHTML = '';
+            instanceData = {};
+            const numColumns = 6; const numPoints = flatData.length / numColumns; const groupedData = {};
+            for (let i = 0; i < numPoints; i++) {
+                const base = i * numColumns;
+                const x = flatData[base]; const y = flatData[base + 1]; const z = flatData[base + 2];
+                const error = flatData[base + 3]; const semLabel = Math.floor(flatData[base + 4]); const instLabel = Math.floor(flatData[base + 5]);
+                if (!groupedData[semLabel]) groupedData[semLabel] = { positions: [], errors: [], minVal: Infinity, maxVal: -Infinity };
+                groupedData[semLabel].positions.push(x, y, z); groupedData[semLabel].errors.push(error);
+                if (error < groupedData[semLabel].minVal) groupedData[semLabel].minVal = error;
+                if (error > groupedData[semLabel].maxVal) groupedData[semLabel].maxVal = error;
+                if (!instanceData[instLabel]) instanceData[instLabel] = { semanticLabel: semLabel, positions: [], errors: [] };
+                instanceData[instLabel].positions.push(x, y, z); instanceData[instLabel].errors.push(error);
+            }
+            Object.keys(groupedData).sort().forEach(label => { createSemanticMesh(label, groupedData[label]); createSemanticUICard(label, groupedData[label], listContainer); });
+        }
+        function createSemanticMesh(label, data) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+            geo.setAttribute('errorVal', new THREE.Float32BufferAttribute(data.errors, 1));
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(data.positions.length * 3), 3));
+            const mat = new THREE.PointsMaterial({ 
+                size: params.pointSize, 
+                sizeAttenuation: params.sizeAttenuation, 
+                vertexColors: true, 
+                transparent: true, 
+                opacity: params.opacity, 
+                depthWrite: true, 
+                depthTest: true 
+            });
+            const pts = new THREE.Points(geo, mat);pts.renderOrder = 999;pts.frustumCulled = false;  pts.name = `Label_${label}`; semanticMeshes[label] = pts; pointCloudGroup.add(pts);
+
+        }
+        function computeHistogram(errors, rangeLimit, bins = 60) {
+            const histogram = new Array(bins).fill(0); const step = (rangeLimit * 2) / bins; let maxCount = 0;
+            for (let err of errors) { if (err < -rangeLimit || err > rangeLimit) continue; let idx = Math.floor((err + rangeLimit) / step); if (idx < 0) idx = 0; if (idx >= bins) idx = bins - 1; histogram[idx]++; if (histogram[idx] > maxCount) maxCount = histogram[idx]; }
+            return { histogram, maxCount, step };
+        }
+        function createSemanticUICard(label, data, container) {
+            const absMax = Math.max(Math.abs(data.minVal), Math.abs(data.maxVal)); const rangeLimit = absMax > 0 ? absMax * 1.1 : 1.0;
+            const histData = computeHistogram(data.errors, rangeLimit, 200);
+            const state = { negLimit: parseFloat((-absMax * 0.5).toFixed(3)), negTol: 0, posTol: 0, posLimit: parseFloat((absMax * 0.5).toFixed(3)), isSymmetric: true };
+            semanticStates[label] = state;
+            const inputsRefs = {}; const card = document.createElement('div'); card.className = 'semantic-card';
+            const header = document.createElement('div'); header.className = 'card-header';
+            header.innerHTML = `<div class="header-left"><span class="card-title">
+            ${+label === 10 ? '管道' :
+                    +label === 11 ? '弯头' :
+                        +label === 12 ? '储罐' :
+                            '类别 ' + label}
+        </span><span class="card-stats">Count: ${data.errors.length} | Range: ±${rangeLimit.toFixed(2)}</span></div>
+                <div class="header-controls">
+                    <label class="symmetry-label" title="开启后，正负公差将同步调节"><input type="checkbox" class="sym-check" checked> 对称</label>
+                    <label class="symmetry-label" title="显示/隐藏当前类别" style="margin-left:5px;"><input type="checkbox" class="vis-check" checked> 显示</label>
+                </div>`;
+            const symCheck = header.querySelector('.sym-check'); symCheck.onchange = (e) => { state.isSymmetric = e.target.checked; };
+            const visCheck = header.querySelector('.vis-check'); visCheck.onchange = (e) => { if (semanticMeshes[label]) semanticMeshes[label].visible = e.target.checked; };
+            card.appendChild(header);
+            const chartContainer = document.createElement('div'); chartContainer.className = 'chart-container';
+            const canvas = document.createElement('canvas'); canvas.className = 'dist-canvas'; canvas.width = 320; canvas.height = 50;
+            chartContainer.appendChild(canvas); const zeroLine = document.createElement('div'); zeroLine.className = 'zero-line'; chartContainer.appendChild(zeroLine); card.appendChild(chartContainer);
+            const colorBar = document.createElement('div'); colorBar.className = 'color-preview-bar'; const tickNeg = document.createElement('div'); tickNeg.className = 'preview-tick'; const tickPos = document.createElement('div'); tickPos.className = 'preview-tick'; colorBar.appendChild(tickNeg); colorBar.appendChild(tickPos); card.appendChild(colorBar);
+            const createControl = (text, key, color) => {
+                const row = document.createElement('div'); row.className = 'control-row';
+                row.innerHTML = `<span class="control-label" style="color:${color}">${text}</span><div class="input-wrapper"><input type="range" class="control-range" min="${-rangeLimit}" max="${rangeLimit}" step="${rangeLimit / 200}" value="${state[key]}"><input type="number" class="control-number" step="0.001" value="${state[key]}"></div>`;
+                const rIn = row.querySelector('.control-range'); const nIn = row.querySelector('.control-number'); inputsRefs[key] = { range: rIn, number: nIn };
+                const handleInput = (val) => {
+                    state[key] = val;
+                    if (state.isSymmetric) {
+                        let tk = null, tv = null; if (key === 'negLimit') { tk = 'posLimit'; tv = -val; } else if (key === 'posLimit') { tk = 'negLimit'; tv = -val; } else if (key === 'negTol') { tk = 'posTol'; tv = -val; } else if (key === 'posTol') { tk = 'negTol'; tv = -val; }
+                        if (tk) { state[tk] = tv; if (inputsRefs[tk]) { inputsRefs[tk].range.value = tv; inputsRefs[tk].number.value = parseFloat(tv.toFixed(3)); } }
+                    } updateVisuals();
+                };
+                rIn.oninput = () => { nIn.value = rIn.value; handleInput(parseFloat(rIn.value)); }; nIn.onchange = () => { let v = parseFloat(nIn.value); rIn.value = v; handleInput(v); }; return row;
+            };
+            const groupNeg = document.createElement('div'); groupNeg.className = 'control-group'; groupNeg.appendChild(createControl('蓝极值', 'negLimit', 'blue')); groupNeg.appendChild(createControl('负公差', 'negTol', '#009999'));
+            const groupPos = document.createElement('div'); groupPos.className = 'control-group'; groupPos.appendChild(createControl('正公差', 'posTol', '#009900')); groupPos.appendChild(createControl('红极值', 'posLimit', 'red'));
+            card.appendChild(groupNeg); card.appendChild(groupPos); container.appendChild(card);
+            const ctx = canvas.getContext('2d');
+            const updateVisuals = () => {
+                const toPct = (val) => ((val + rangeLimit) / (2 * rangeLimit)) * 100;
+                const p1 = toPct(state.negLimit), p2 = toPct(state.negTol), p3 = toPct(state.posTol), p4 = toPct(state.posLimit);
+                colorBar.style.background = `linear-gradient(90deg, #0000ff 0%, #0000ff ${p1}%, #00ffff ${(p1 + p2) / 2}%, #00e600 ${p2}%, #00e600 ${p3}%, #ffff00 ${(p3 + p4) / 2}%, #ff0000 ${p4}%, #ff0000 100%)`;
+                tickNeg.style.left = `${p2}%`; tickPos.style.left = `${p3}%`;
+                const w = canvas.width, h = canvas.height; ctx.clearRect(0, 0, w, h); const binW = w / histData.histogram.length; const drawW = Math.max(1, binW + 0.5);
+                const getColor = (val) => {
+                    const negR = Math.max(1e-5, state.negTol - state.negLimit); const posR = Math.max(1e-5, state.posLimit - state.posTol); let hue;
+                    if (val < state.negLimit) hue = 240; else if (val < state.negTol) hue = 240 - ((val - state.negLimit) / negR * 120); else if (val <= state.posTol) hue = 120; else if (val < state.posLimit) hue = 120 - ((val - state.posTol) / posR * 120); else hue = 0;
+                    return `hsl(${hue}, 100%, 45%)`;
+                };
+                histData.histogram.forEach((count, i) => { const binVal = -rangeLimit + (i * histData.step) + (histData.step / 2); ctx.fillStyle = getColor(binVal); const barH = (count / histData.maxCount) * (h * 0.9); ctx.fillRect(i * binW, h - barH, drawW, barH); });
+                updateSingleLabelColor(label, state);
+            };
+            updateVisuals();
+        }
+        function updateSingleLabelColor(label, state) {
+            const points = semanticMeshes[label]; if (!points) return;
+            const geo = points.geometry; const errors = geo.attributes.errorVal.array; const colors = geo.attributes.color.array;
+            const negR = Math.max(1e-5, state.negTol - state.negLimit); const posR = Math.max(1e-5, state.posLimit - state.posTol);
+            for (let i = 0; i < errors.length; i++) {
+                const val = errors[i]; let hue;
+                if (val < state.negLimit) hue = 240.0; else if (val < state.negTol) hue = 240.0 - ((val - state.negLimit) / negR * 120.0); else if (val <= state.posTol) hue = 120.0; else if (val < state.posLimit) hue = 120.0 - ((val - state.posTol) / posR * 120.0); else hue = 0.0;
+                const col = new THREE.Color().setHSL(hue / 360, 0.8, 0.4); colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
+            } geo.attributes.color.needsUpdate = true;
+        }
+        function updateAllPointMaterial() { 
+            [pointCloudGroup, failedGroup].forEach(group => {
+                group.traverse(child => {
+                    if (child.isPoints) {
+                        child.material.size = params.pointSize; 
+                        child.material.sizeAttenuation = params.sizeAttenuation; 
+                        child.material.opacity = params.opacity; 
+                        child.material.needsUpdate = true;
+                    }
+                });
+            });
+        }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+    </script>
+</body>
+
+</html>
