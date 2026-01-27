@@ -6,7 +6,7 @@ export const params = {
     sizeAttenuation: false,
     opacity: 1.0,
     meshColor: '#9aa0a6',
-    meshOpacity: 0.4,
+    meshOpacity: 1.0,
     showMesh: true,
     showGrid: true,
     backgroundColor: '#f0f2f5'

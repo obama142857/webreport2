@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { params, loadStatus, instanceData, setInstanceData, semanticMeshes } from './state.js';
-import { meshGroup, pointCloudGroup, failedGroup, focusOnBox } from './viewer.js';
+import { meshGroup, pointCloudGroup, failedGroup, focusOnBox, updateMeshMaterial } from './viewer.js';
 import { updateStatus, updateProgress, showNotification, checkAllLoaded, createSemanticUICard } from './ui.js';
 
 /**
@@ -28,6 +28,7 @@ export function loadDefaultFiles() {
                         
                         meshGroup.clear();
                         meshGroup.add(object);
+                        updateMeshMaterial();
                         
                         const box = new THREE.Box3().setFromObject(object);
                         const size = box.getSize(new THREE.Vector3());

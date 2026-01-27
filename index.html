@@ -58,7 +58,6 @@
             <div class="form-row"><label>背景颜色</label><input type="color" id="bgColor" value="#f0f2f5"></div>
             <div class="form-row"><label>显示网格</label><input type="checkbox" id="showGrid" checked></div>
             <div class="form-row"><label>显示失败点云</label><input type="checkbox" id="showFailed" checked></div>
-            <div class="form-row"><label>近大远小</label><input type="checkbox" id="sizeAttenuation"></div>
             <div class="form-row">
                 <label>点云大小</label>
                 <div class="input-wrapper">
@@ -80,10 +79,10 @@
             <div class="form-row"><label>显示模型</label><input type="checkbox" id="showMesh" checked></div>
             <div class="form-row"><label>模型颜色</label><input type="color" id="meshColor" value="#9aa0a6"></div>
             <div class="form-row">
-                <label>透明度</label>
+                <label>不透明度</label>
                 <div class="input-wrapper">
-                    <input type="range" id="meshOpacity" min="0" max="1" step="0.1" value="0.4">
-                    <span id="meshOpacityVal" class="control-number" style="border:none;">0.4</span>
+                    <input type="range" id="meshOpacity" min="0" max="1" step="0.1" value="1">
+                    <span id="meshOpacityVal" class="control-number" style="border:none;">1.0</span>
                 </div>
             </div>
         </div>
@@ -97,7 +96,7 @@
         </div>
 
             <div class="form-row">
-                <label>超差判定阈值</label>
+                <label>不合格比例<span class="tooltip-icon" data-tooltip="筛选出所有不合格点数所占比例超过该值的实例">?</span></label>
                 <div class="input-wrapper">
                     <input type="range" id="defectRatioRange" min="0.1" max="1.0" step="0.05" value="0.6"
                         class="control-range">
@@ -106,9 +105,9 @@
                 </div>
             </div>
 
-            <button class="btn-calc" id="btnCalcInstances">开始计算</button>
+            <button class="btn-calc" id="btnCalcInstances">开始筛选</button>
             <div id="instance-list">
-                <div style="text-align:center; color:#999; font-size:0.9em; padding-top:10px;">点击上方按钮计算</div>
+                <div style="text-align:center; color:#999; font-size:0.9em; padding-top:10px;">点击上方按钮筛选</div>
             </div>
         </div>
     </div>

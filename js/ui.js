@@ -70,20 +70,7 @@ export function setupRightSidebarEvents() {
         if (failedGroup) failedGroup.visible = e.target.checked;
     });
     
-    document.getElementById('sizeAttenuation').addEventListener('change', (e) => {
-        params.sizeAttenuation = e.target.checked;
-        const range = document.getElementById('pointSizeRange');
-        const valDisplay = document.getElementById('pointSizeVal');
-        if (params.sizeAttenuation) { 
-            params.pointSize = 0.05; range.max = 1.0; range.step = 0.01; 
-        } else { 
-            params.pointSize = 3; range.max = 10.0; range.step = 0.1; 
-        }
-        range.value = params.pointSize; 
-        valDisplay.innerText = params.pointSize;
-        updateAllPointMaterial();
-    });
-    
+
     document.getElementById('pointSizeRange').addEventListener('input', (e) => { 
         params.pointSize = parseFloat(e.target.value); 
         document.getElementById('pointSizeVal').innerText = params.pointSize; 
@@ -139,7 +126,7 @@ function setupFocusMode() {
             pModel.style.display = 'none';
             pInstance.style.maxHeight = 'calc(100vh - 40px)'; 
             pInstance.style.flex = '1'; 
-            btn.innerHTML = '✖ 退出专注';
+            btn.innerHTML = '✖ 最小化';
             btn.style.background = '#ffebee';
             btn.style.borderColor = '#ffcdd2';
             btn.style.color = '#c62828';
@@ -148,7 +135,7 @@ function setupFocusMode() {
             pModel.style.display = 'flex';
             pInstance.style.maxHeight = '320px';
             pInstance.style.flex = 'unset';
-            btn.innerHTML = '⛶ 专注模式';
+            btn.innerHTML = '⛶ 展开';
             btn.style.background = '#fff';
             btn.style.borderColor = '#ccc';
             btn.style.color = '#333';
@@ -180,7 +167,7 @@ function calculateDefectiveInstances() {
     }
 
     if (results.length === 0) {
-        listDiv.innerHTML = `<div style="text-align:center; color:#666; padding:10px;">未发现超差比例 > ${ratioThreshold} 的实例</div>`;
+        listDiv.innerHTML = `<div style="text-align:center; color:#666; padding:10px;">未发现不合格比例 > ${ratioThreshold} 的实例</div>`;
         return;
     }
     
@@ -192,7 +179,7 @@ function calculateDefectiveInstances() {
             <div class="defect-info">
                 <strong>Instance ID: ${res.id}</strong>
                 <span style="font-size:0.8em; color:#666;">语义: ${res.semLabel} | 点数: ${res.count}</span>
-                <span class="defect-ratio">超差: ${(res.ratio * 100).toFixed(1)}%</span>
+                <span class="defect-ratio">不合格比例: ${(res.ratio * 100).toFixed(1)}%</span>
             </div>
             <button class="btn-focus">定位</button>
         `;
@@ -263,7 +250,7 @@ export function createSemanticUICard(label, data, container) {
     const header = document.createElement('div'); header.className = 'card-header';
     header.innerHTML = `<div class="header-left"><span class="card-title">
             ${+label === 10 ? '管道' : +label === 11 ? '弯头' : +label === 12 ? '储罐' : '类别 ' + label}
-        </span><span class="card-stats">Count: ${data.errors.length} | Range: ±${rangeLimit.toFixed(2)}</span></div>
+        </span><span class="card-stats">点数: ${data.errors.length} | 误差范围: ±${rangeLimit.toFixed(2)}m</span></div>
         <div class="header-controls">
             <label class="symmetry-label"><input type="checkbox" class="sym-check" checked> 对称</label>
             <label class="symmetry-label" style="margin-left:5px;"><input type="checkbox" class="vis-check" checked> 显示</label>
@@ -280,9 +267,13 @@ export function createSemanticUICard(label, data, container) {
     chartContainer.appendChild(zeroLine); card.appendChild(chartContainer);
 
     const colorBar = document.createElement('div'); colorBar.className = 'color-preview-bar'; 
-    const tickNeg = document.createElement('div'); tickNeg.className = 'preview-tick'; 
-    const tickPos = document.createElement('div'); tickPos.className = 'preview-tick'; 
-    colorBar.appendChild(tickNeg); colorBar.appendChild(tickPos); card.appendChild(colorBar);
+    const tickNegLimit = document.createElement('div'); tickNegLimit.className = 'preview-tick'; 
+    const tickNegTol = document.createElement('div'); tickNegTol.className = 'preview-tick'; 
+    const tickPosTol = document.createElement('div'); tickPosTol.className = 'preview-tick'; 
+    const tickPosLimit = document.createElement('div'); tickPosLimit.className = 'preview-tick'; 
+    colorBar.appendChild(tickNegLimit); colorBar.appendChild(tickNegTol); 
+    colorBar.appendChild(tickPosTol); colorBar.appendChild(tickPosLimit); 
+    card.appendChild(colorBar);
 
     const createControl = (text, key, color) => {
         const row = document.createElement('div'); row.className = 'control-row';
@@ -314,21 +305,23 @@ export function createSemanticUICard(label, data, container) {
         return row;
     };
 
-    const groupNeg = document.createElement('div'); groupNeg.className = 'control-group'; 
-    groupNeg.appendChild(createControl('蓝极值', 'negLimit', 'blue')); 
-    groupNeg.appendChild(createControl('负公差', 'negTol', '#009999'));
-    const groupPos = document.createElement('div'); groupPos.className = 'control-group'; 
-    groupPos.appendChild(createControl('正公差', 'posTol', '#009900')); 
-    groupPos.appendChild(createControl('红极值', 'posLimit', 'red'));
+    const controlsGroup = document.createElement('div'); controlsGroup.className = 'control-group'; 
+    controlsGroup.appendChild(createControl('不合格下限', 'negLimit', 'blue')); 
+    controlsGroup.appendChild(createControl('合格下限', 'negTol', '#009999'));
+    controlsGroup.appendChild(createControl('合格上限', 'posTol', '#009900')); 
+    controlsGroup.appendChild(createControl('不合格上限', 'posLimit', 'red'));
     
-    card.appendChild(groupNeg); card.appendChild(groupPos); container.appendChild(card);
+    card.appendChild(controlsGroup); container.appendChild(card);
 
     const ctx = canvas.getContext('2d');
     const updateVisuals = () => {
         const toPct = (val) => ((val + rangeLimit) / (2 * rangeLimit)) * 100;
         const p1 = toPct(state.negLimit), p2 = toPct(state.negTol), p3 = toPct(state.posTol), p4 = toPct(state.posLimit);
         colorBar.style.background = `linear-gradient(90deg, #0000ff 0%, #0000ff ${p1}%, #00ffff ${(p1 + p2) / 2}%, #00e600 ${p2}%, #00e600 ${p3}%, #ffff00 ${(p3 + p4) / 2}%, #ff0000 ${p4}%, #ff0000 100%)`;
-        tickNeg.style.left = `${p2}%`; tickPos.style.left = `${p3}%`;
+        tickNegLimit.style.left = `${p1}%`;
+        tickNegTol.style.left = `${p2}%`;
+        tickPosTol.style.left = `${p3}%`;
+        tickPosLimit.style.left = `${p4}%`;
         
         const w = canvas.width, h = canvas.height; 
         ctx.clearRect(0, 0, w, h); 

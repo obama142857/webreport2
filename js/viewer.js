@@ -101,6 +101,7 @@ export function updateAllPointMaterial() {
                 child.material.size = params.pointSize; 
                 child.material.sizeAttenuation = params.sizeAttenuation; 
                 child.material.opacity = params.opacity; 
+                child.material.transparent = (params.opacity < 1.0);
                 child.material.needsUpdate = true;
             }
         });
@@ -115,6 +116,7 @@ export function updateMeshMaterial() {
         if (child.isMesh) {
             child.material.color.set(params.meshColor);
             child.material.opacity = params.meshOpacity;
+            child.material.transparent = (params.meshOpacity < 1.0);
             child.material.depthWrite = (params.meshOpacity === 1.0);
         }
     });
