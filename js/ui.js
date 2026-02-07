@@ -3,6 +3,8 @@ import * as TWEEN from '@tweenjs/tween.js';
 import { params, loadStatus, instanceData, semanticMeshes, semanticStates } from './state.js';
 import { scene, camera, controls, updateAllPointMaterial, updateMeshMaterial } from './viewer.js';
 
+let currentHighlightBox = null;
+
 export function updateStatus(id, type, msg) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -175,6 +177,7 @@ function calculateDefectiveInstances() {
     results.forEach(res => {
         const item = document.createElement('div');
         item.className = 'defect-item';
+        item.dataset.id = res.id;
         item.innerHTML = `
             <div class="defect-info">
                 <strong>Instance ID: ${res.id}</strong>
@@ -183,7 +186,12 @@ function calculateDefectiveInstances() {
             </div>
             <button class="btn-focus">定位</button>
         `;
-        item.querySelector('.btn-focus').onclick = () => focusOnInstance(res.id);
+        item.querySelector('.btn-focus').onclick = () => {
+            // UI 状态切换
+            document.querySelectorAll('.defect-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+            focusOnInstance(res.id);
+        };
         listDiv.appendChild(item);
     });
 }
@@ -193,15 +201,81 @@ function focusOnInstance(instanceId) {
     if (!inst || inst.positions.length === 0) return;
     TWEEN.removeAll();
 
+    // 移除之前的高亮
+    if (currentHighlightBox) {
+        scene.remove(currentHighlightBox);
+        currentHighlightBox = null;
+    }
+
     const box = new THREE.Box3();
-    for (let i = 0; i < inst.positions.length; i += 3) {
-        box.expandByPoint(new THREE.Vector3(inst.positions[i], inst.positions[i + 1], inst.positions[i + 2]));
+    const positions = new Float32Array(inst.positions);
+    for (let i = 0; i < positions.length; i += 3) {
+        box.expandByPoint(new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]));
     }
     const center = box.getCenter(new THREE.Vector3());
     const sphere = new THREE.Sphere();
     box.getBoundingSphere(sphere);
     const radius = sphere.radius;
     const dist = Math.max(radius * 3.0, 2.0);
+
+    // 创建高亮组（包含线框和面）
+    const highlightGroup = new THREE.Group();
+    highlightGroup.renderOrder = 10000;
+    
+    // 1. 线框部分
+    const helper = new THREE.Box3Helper(box, 0xffff00);
+    helper.material = helper.material.clone();
+    helper.material.linewidth = 4;
+    helper.material.depthTest = false;
+    helper.material.depthWrite = false;
+    helper.material.transparent = true;
+    helper.renderOrder = 10001; 
+    highlightGroup.add(helper);
+
+    // 2. 半透明面部分
+    const size = box.getSize(new THREE.Vector3());
+    const meshGeo = new THREE.BoxGeometry(size.x || 0.01, size.y || 0.01, size.z || 0.01);
+    const meshMat = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        transparent: true,
+        opacity: 0.2,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false
+    });
+    const mesh = new THREE.Mesh(meshGeo, meshMat);
+    mesh.position.copy(center);
+    mesh.renderOrder = 10000;
+    highlightGroup.add(mesh);
+
+    scene.add(highlightGroup);
+    currentHighlightBox = highlightGroup;
+
+    // 让高亮组闪烁
+    let flickerCount = 0;
+    const flickerInterval = setInterval(() => {
+        highlightGroup.visible = !highlightGroup.visible;
+        flickerCount++;
+        if (flickerCount >= 10) {
+            clearInterval(flickerInterval);
+            highlightGroup.visible = true;
+            // 6秒后移除
+            setTimeout(() => {
+                if (currentHighlightBox === highlightGroup) {
+                    scene.remove(highlightGroup);
+                    // 释放资源
+                    meshGeo.dispose();
+                    meshMat.dispose();
+                    currentHighlightBox = null;
+                }
+            }, 6000);
+        }
+    }, 150);
+
+    // 如果相机当前聚焦的目标已经在包围盒内，则不进行移动动画
+    if (box.containsPoint(controls.target)) {
+        return;
+    }
 
     const startPos = camera.position.clone();
     const startTarget = controls.target.clone();
@@ -250,7 +324,7 @@ export function createSemanticUICard(label, data, container) {
     const header = document.createElement('div'); header.className = 'card-header';
     header.innerHTML = `<div class="header-left"><span class="card-title">
             ${+label === 10 ? '管道' : +label === 11 ? '弯头' : +label === 12 ? '储罐' : '类别 ' + label}
-        </span><span class="card-stats">点数: ${data.errors.length} | 误差范围: ±${rangeLimit.toFixed(2)}m</span></div>
+        </span><span class="card-stats">点数: ${data.errors.length}<br>最大误差范围: ±${(rangeLimit * 1000).toFixed(2)}mm</span></div>
         <div class="header-controls">
             <label class="symmetry-label"><input type="checkbox" class="sym-check" checked> 对称</label>
             <label class="symmetry-label" style="margin-left:5px;"><input type="checkbox" class="vis-check" checked> 显示</label>
@@ -277,7 +351,7 @@ export function createSemanticUICard(label, data, container) {
 
     const createControl = (text, key, color) => {
         const row = document.createElement('div'); row.className = 'control-row';
-        row.innerHTML = `<span class="control-label" style="color:${color}">${text}</span><div class="input-wrapper"><input type="range" class="control-range" min="${-rangeLimit}" max="${rangeLimit}" step="${rangeLimit / 200}" value="${state[key]}"><input type="number" class="control-number" step="0.001" value="${state[key]}"></div>`;
+        row.innerHTML = `<span class="control-label" style="color:${color}">${text}</span><div class="input-wrapper"><input type="range" class="control-range" min="${-rangeLimit}" max="${rangeLimit}" step="${rangeLimit / 200}" value="${state[key]}"><input type="number" class="control-number" step="0.01" value="${(state[key] * 1000).toFixed(2)}"></div>`;
         const rIn = row.querySelector('.control-range'); 
         const nIn = row.querySelector('.control-number'); 
         inputsRefs[key] = { range: rIn, number: nIn };
@@ -294,14 +368,23 @@ export function createSemanticUICard(label, data, container) {
                     state[tk] = tv; 
                     if (inputsRefs[tk]) { 
                         inputsRefs[tk].range.value = tv; 
-                        inputsRefs[tk].number.value = parseFloat(tv.toFixed(3)); 
+                        inputsRefs[tk].number.value = (tv * 1000).toFixed(2); 
                     } 
                 }
             } 
             updateVisuals();
         };
-        rIn.oninput = () => { nIn.value = rIn.value; handleInput(parseFloat(rIn.value)); }; 
-        nIn.onchange = () => { let v = parseFloat(nIn.value); rIn.value = v; handleInput(v); }; 
+        rIn.oninput = () => { 
+            const val = parseFloat(rIn.value);
+            nIn.value = (val * 1000).toFixed(2); 
+            handleInput(val); 
+        }; 
+        nIn.onchange = () => { 
+            let v_mm = parseFloat(nIn.value); 
+            let v_m = v_mm / 1000;
+            rIn.value = v_m; 
+            handleInput(v_m); 
+        }; 
         return row;
     };
 

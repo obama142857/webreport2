@@ -8,55 +8,39 @@ import { updateStatus, updateProgress, showNotification, checkAllLoaded, createS
  */
 export function loadDefaultFiles() {
     // 1. 加载 output.obj
-    const objFileLoader = new THREE.FileLoader();
-    objFileLoader.setResponseType('arraybuffer');
-    updateStatus('status-obj', 'loading', '正在下载大型模型 (output.obj) ...');
+    updateStatus('status-obj', 'loading', '准备下载并流式解析 output.obj ...');
 
-    objFileLoader.load(
+    loadObjStream(
         './output.obj',
-        (buffer) => {
-            try {
-                console.log('[OBJ] Download complete. Buffer size:', buffer.byteLength);
-                updateStatus('status-obj', 'loading', '正在解析大型模型数据...');
-                
-                setTimeout(() => {
-                    streamParseOBJ(buffer, (object, progressMsg, isDone) => {
-                        if (!isDone) {
-                            updateStatus('status-obj', 'loading', progressMsg);
-                            return;
-                        }
-                        
-                        meshGroup.clear();
-                        meshGroup.add(object);
-                        updateMeshMaterial();
-                        
-                        const box = new THREE.Box3().setFromObject(object);
-                        const size = box.getSize(new THREE.Vector3());
-                        
-                        console.log('[OBJ] Surface Ready. Faces:', object.geometry.index.count / 3);
-                        
-                        if (size.length() > 0) {
-                            focusOnBox(box);
-                        }
-
-                        updateStatus('status-obj', 'success', `模型成功载入并生成表面 (${(buffer.byteLength / 1024 / 1024).toFixed(1)} MB)`);
-                    });
-                }, 100);
-            } catch (e) {
-                console.error('OBJ Process Error:', e);
-                showNotification('处理大型 OBJ 失败: ' + e.message);
-                updateStatus('status-obj', 'error', '解析模型失败');
+        (loaded, total) => {
+            updateProgress('obj', loaded, total);
+            let msg = `加载中... ${(loaded / 1024 / 1024).toFixed(0)} MB`;
+            if (total > 0) {
+                const pct = (loaded / total * 100).toFixed(0);
+                msg = `下载并解析... ${pct}% (${(loaded / 1024 / 1024).toFixed(0)}MB)`;
             }
+            updateStatus('status-obj', 'loading', msg);
         },
-        (xhr) => {
-            if (xhr.lengthComputable && xhr.total > 0) {
-                updateProgress('obj', xhr.loaded, xhr.total);
-                const pct = (xhr.loaded / xhr.total * 100).toFixed(0);
-                updateStatus('status-obj', 'loading', `下载 output.obj ... ${pct}% (${(xhr.loaded/1024/1024).toFixed(0)}MB)`);
+        (object) => {
+            meshGroup.clear();
+            meshGroup.add(object);
+            updateMeshMaterial();
+
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+
+            console.log('[OBJ] Surface Ready. Faces:', object.geometry.index.count / 3);
+
+            if (size.length() > 0) {
+                focusOnBox(box);
             }
+
+            updateStatus('status-obj', 'success', `模型成功载入并生成表面`);
         },
         (err) => {
-            updateStatus('status-obj', 'error', '下载 output.obj 失败');
+            console.error('OBJ Process Error:', err);
+            showNotification('处理大型 OBJ 失败: ' + err.message);
+            updateStatus('status-obj', 'error', '解析模型失败');
         }
     );
 
@@ -93,113 +77,161 @@ export function loadDefaultFiles() {
     loadFailedPly();
 }
 
+class ResizableBuffer {
+    constructor(type, chunkSize = 5000000) {
+        this.Type = type;
+        this.chunkSize = chunkSize;
+        this.buffers = [new type(chunkSize)];
+        this.currentIdx = 0;
+        this.currentBuffer = this.buffers[0];
+    }
+    
+    push(v) {
+        if (this.currentIdx >= this.chunkSize) {
+            this.buffers.push(new this.Type(this.chunkSize));
+            this.currentBuffer = this.buffers[this.buffers.length - 1];
+            this.currentIdx = 0;
+        }
+        this.currentBuffer[this.currentIdx++] = v;
+    }
+    
+    push3(v1, v2, v3) {
+        if (this.currentIdx + 3 > this.chunkSize) {
+            this.push(v1); this.push(v2); this.push(v3);
+            return;
+        }
+        this.currentBuffer[this.currentIdx++] = v1;
+        this.currentBuffer[this.currentIdx++] = v2;
+        this.currentBuffer[this.currentIdx++] = v3;
+    }
+    
+    merge() {
+        if (this.buffers.length === 1) {
+            return this.buffers[0].subarray(0, this.currentIdx);
+        }
+        const totalSize = (this.buffers.length - 1) * this.chunkSize + this.currentIdx;
+        const merged = new this.Type(totalSize);
+        let offset = 0;
+        for (let i = 0; i < this.buffers.length - 1; i++) {
+            merged.set(this.buffers[i], offset);
+            offset += this.chunkSize;
+        }
+        merged.set(this.buffers[this.buffers.length - 1].subarray(0, this.currentIdx), offset);
+        return merged;
+    }
+}
+
 /**
- * 流式解析大型 OBJ
+ * 流式加载 OBJ 文件
  */
-function streamParseOBJ(buffer, callback) {
-    const view = new Uint8Array(buffer);
-    const decoder = new TextDecoder();
-    
-    let vCount = 4697458; 
-    let fCount = 5307040;
-    
-    const headerText = decoder.decode(view.slice(0, 2000));
-    const vMatch = headerText.match(/number of vertices:\s+(\d+)/);
-    if (vMatch) vCount = parseInt(vMatch[1]);
-    const fMatch = headerText.match(/number of triangles:\s+(\d+)/);
-    if (fMatch) fCount = parseInt(fMatch[1]);
-
-    const positions = new Float32Array(vCount * 3);
-    const colors = new Float32Array(vCount * 3);
-    const normals = new Float32Array(vCount * 3);
-    const indices = new Uint32Array(fCount * 3);
-    
-    let vIdx = 0, nIdx = 0, fIdx = 0;
-    let start = 0;
-    let colorFound = false;
-
-    function processChunk(offset) {
-        const end = Math.min(offset + 50000000, view.length);
+async function loadObjStream(url, onProgress, onMeshReady, onError) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
-        for (let i = offset; i < end; i++) {
-            if (view[i] === 10 || view[i] === 13) {
-                if (i > start) {
-                    const line = decoder.decode(view.slice(start, i)).trim();
-                    if (line.startsWith('v ')) {
-                        const p = line.split(/\s+/);
-                        if (p.length >= 4) {
-                            positions[vIdx*3] = parseFloat(p[1]);
-                            positions[vIdx*3+1] = parseFloat(p[2]);
-                            positions[vIdx*3+2] = parseFloat(p[3]);
-                            if (p.length >= 7) {
-                                colors[vIdx*3] = parseFloat(p[4]);
-                                colors[vIdx*3+1] = parseFloat(p[5]);
-                                colors[vIdx*3+2] = parseFloat(p[6]);
-                                colorFound = true;
-                            }
-                            vIdx++;
-                        }
-                    } else if (line.startsWith('vn ')) {
-                        const p = line.split(/\s+/);
-                        if (p.length >= 4) {
-                            normals[nIdx*3] = parseFloat(p[1]);
-                            normals[nIdx*3+1] = parseFloat(p[2]);
-                            normals[nIdx*3+2] = parseFloat(p[3]);
-                            nIdx++;
-                        }
-                    } else if (line.startsWith('f ')) {
-                        const p = line.split(/\s+/);
-                        if (p.length >= 4) {
-                            for (let k = 0; k < 3; k++) {
-                                const part = p[k+1];
-                                const slashIdx = part.indexOf('/');
-                                const idxStr = slashIdx === -1 ? part : part.substring(0, slashIdx);
-                                indices[fIdx*3 + k] = parseInt(idxStr) - 1;
-                            }
-                            fIdx++;
-                        }
+        const contentLength = response.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        let loaded = 0;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+
+        // 分块大小: 5M elements
+        const vBuf = new ResizableBuffer(Float32Array, 5000000);
+        const cBuf = new ResizableBuffer(Float32Array, 5000000);
+        const nBuf = new ResizableBuffer(Float32Array, 5000000);
+        const iBuf = new ResizableBuffer(Uint32Array, 5000000);
+        
+        let hasColors = false;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            loaded += value.byteLength;
+            if (total > 0 && onProgress) {
+                onProgress(loaded, total);
+            }
+
+            const chunkText = decoder.decode(value, { stream: true });
+            const parseText = pending + chunkText;
+            
+            let lastLineBreak = parseText.lastIndexOf('\n');
+            if (lastLineBreak === -1) {
+                pending = parseText;
+                continue;
+            }
+            
+            const linesToProcess = parseText.substring(0, lastLineBreak);
+            pending = parseText.substring(lastLineBreak + 1);
+            
+            const lines = linesToProcess.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                if (line.length === 0 || line.startsWith('#')) continue;
+                
+                if (line.startsWith('v ')) {
+                    const parts = line.split(/\s+/);
+                    vBuf.push3(parseFloat(parts[1]), parseFloat(parts[3]), parseFloat(parts[2]));
+                    if (parts.length >= 7) {
+                        cBuf.push3(parseFloat(parts[4]), parseFloat(parts[5]), parseFloat(parts[6]));
+                        hasColors = true;
+                    }
+                } else if (line.startsWith('vn ')) {
+                    const parts = line.split(/\s+/);
+                    nBuf.push3(parseFloat(parts[1]), parseFloat(parts[3]), parseFloat(parts[2]));
+                } else if (line.startsWith('f ')) {
+                    const parts = line.split(/\s+/);
+                    const faceIndices = [];
+                    for (let j = 1; j < parts.length; j++) {
+                        const part = parts[j];
+                        let slashIdx = part.indexOf('/');
+                        let val = parseInt(slashIdx === -1 ? part : part.substring(0, slashIdx));
+                        faceIndices.push(val - 1);
+                    }
+                    if (faceIndices.length === 3) {
+                        iBuf.push3(faceIndices[0], faceIndices[1], faceIndices[2]);
+                    } else if (faceIndices.length === 4) {
+                        iBuf.push3(faceIndices[0], faceIndices[1], faceIndices[2]);
+                        iBuf.push3(faceIndices[0], faceIndices[2], faceIndices[3]);
                     }
                 }
-                start = i + 1;
-                if (view[start] === 10 || view[start] === 13) { start++; i++; }
             }
+            
+            await new Promise(r => setTimeout(r, 0));
         }
-
-        if (end < view.length) {
-            const pct = (end / view.length * 100).toFixed(0);
-            callback(null, `正在多线程解析网格与材质: ${pct}%...`, false);
-            setTimeout(() => processChunk(end), 0);
+        
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(vBuf.merge(), 3));
+        
+        if (hasColors) {
+            geometry.setAttribute('color', new THREE.BufferAttribute(cBuf.merge(), 3));
+        }
+        
+        const normals = nBuf.merge();
+        if (normals.length > 0) {
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
         } else {
-            callback(null, '正在构建光照与法线数据...', false);
-            
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, vIdx * 3), 3));
-            
-            if (colorFound) {
-                geometry.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, vIdx * 3), 3));
-            }
-            
-            if (nIdx > 0) {
-                geometry.setAttribute('normal', new THREE.BufferAttribute(normals.subarray(0, nIdx * 3), 3));
-            } else if (vIdx > 0 && vIdx < 2000000) {
-                geometry.computeVertexNormals();
-            }
-
-            geometry.setIndex(new THREE.BufferAttribute(indices.subarray(0, fIdx * 3), 1));
-
-            const material = new THREE.MeshLambertMaterial({
-                color: colorFound ? 0xffffff : params.meshColor,
-                vertexColors: colorFound,
-                side: THREE.DoubleSide,
-                transparent: params.meshOpacity < 1.0,
-                opacity: params.meshOpacity,
-                flatShading: false
-            });
-
-            callback(new THREE.Mesh(geometry, material), null, true);
+             geometry.computeVertexNormals();
         }
+        
+        geometry.setIndex(new THREE.BufferAttribute(iBuf.merge(), 1));
+
+        const material = new THREE.MeshLambertMaterial({
+            color: hasColors ? 0xffffff : params.meshColor,
+            vertexColors: hasColors,
+            side: THREE.DoubleSide,
+            transparent: params.meshOpacity < 1.0,
+            opacity: params.meshOpacity,
+            flatShading: false
+        });
+        
+        onMeshReady(new THREE.Mesh(geometry, material));
+
+    } catch (e) {
+        if (onError) onError(e);
     }
-    processChunk(0);
 }
 
 function loadFailedPly() {
@@ -340,8 +372,8 @@ function parsePly(buffer) {
             offset += prop.size;
         }
         result[i * 6] = x;
-        result[i * 6 + 1] = y;
-        result[i * 6 + 2] = z;
+        result[i * 6 + 1] = z;
+        result[i * 6 + 2] = y;
         result[i * 6 + 3] = error;
         result[i * 6 + 4] = sem;
         result[i * 6 + 5] = inst;

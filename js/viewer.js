@@ -50,8 +50,10 @@ export function initViewer() {
     pointCloudGroup = new THREE.Group();
     failedGroup = new THREE.Group();
     
-    pointCloudGroup.renderOrder = 999;
-    failedGroup.renderOrder = 1000;
+    // 让点云先渲染，模型后渲染，以便在模型半透明时能正确透过模型看到点云
+    meshGroup.renderOrder = 2;
+    pointCloudGroup.renderOrder = 1;
+    failedGroup.renderOrder = 1;
     
     scene.add(meshGroup);
     scene.add(pointCloudGroup);
